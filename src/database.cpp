@@ -1,25 +1,33 @@
-#include <Arduino.h>
-#include <SPI.h>
 #include <MySQL_Connection.h>
-#include <MySQL_Cursor.h> //Bliblioteca para executar comandos no SQL
+#include <MySQL_Cursor.h>
+#include <Ethernet.h>
+#include "config.h"
+#include "database.h"
 
-//Configurações de Rede
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-IPAddress ip(192, 168, 1, 177);
-IPAddress server_addr(192, 168, 1, 100);
+EthernetClient client;
+MySQL_Connection conn((Client *)&client);
 
-//Acesso ao Banco de Dados
-char user[] = ""; //Substituir no futuro
-char password[] = ""; //Substituir no futuro
-
-//Objetos
-EthernetClient;
-MySQL_Connection conn(Client*(&client));
-
-//Funçaõ responsavel por conectar ao banco de da
-void ConectarBanco() {
-
-    Ethernet.begin(mac, ip);
-     
+void conectarBanco() {
+  if (conn.connect(DB_HOST, 3306, DB_USER, DB_PASS)) {
+    Serial.println("✅ Conectado ao banco de dados.");
+  } else {
+    Serial.println("❌ FALHA na conexão com o banco.");
+  }
 }
 
+void inserirDados(String conteudo1, String conteudo2) {
+  if (conn.connected()) {
+    char query[256];
+    sprintf(query,
+            "INSERT INTO %s.dados_temporarios (conteudo1, conteudo2) VALUES ('%s', '%s');",
+            DB_NAME, conteudo1.c_str(), conteudo2.c_str());
+
+    MySQL_Cursor *cur = new MySQL_Cursor(&conn);
+    cur->execute(query);
+    delete cur;
+
+    Serial.println("📥 Dados inseridos no banco.");
+  } else {
+    Serial.println("⚠️ Banco desconectado.");
+  }
+}
