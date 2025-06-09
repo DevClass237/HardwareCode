@@ -1,11 +1,15 @@
 #include <Arduino.h>
 #include <MFRC522.h>
 #include <SPI.h>
+#include "database.h"
+#include "config_values.h"
 #include <DIYables_Keypad.h>
+#include <Ethernet.h>
+// RFID
+#define SS_PIN 53
+#define RST_PIN 49
+MFRC522 mfrc522(SS_PIN, RST_PIN);
 
-MFRC522 mfrc522(53, 49);
-const byte ROWS = 4;
-const byte COLS = 4;
 int C5 = 523;
 int D5 = 587;
 int E5 = 659;
@@ -13,34 +17,43 @@ int F5 = 698;
 int G5 = 783;
 int a5 = 880;
 int B5 = 987;
+unsigned long startTime;
+unsigned long interval = 20000;
+// Teclado
+const byte ROWS = 4;
+const byte COLS = 4;
 byte rowPins[ROWS] = {22, 23, 24, 25};
 byte colPins[COLS] = {26, 27, 28, 29};
+
 char keys[ROWS][COLS] = {
     {'1', '2', '3', 'A'},
     {'4', '5', '6', 'B'},
     {'7', '8', '9', 'C'},
     {'*', '0', '#', 'D'}};
+
 DIYables_Keypad keypad = DIYables_Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
-unsigned long startTime;
-unsigned long interval = 20000;
-int InBuzzerD48 = 11;
-void setup()
-{
 
-  // put your setup code here, to run once:
-  pinMode(InBuzzerD48, OUTPUT);
-  Serial.begin(9600);
-  SPI.begin();
-  Serial.println(startTime);
-  mfrc522.PCD_Init();
-  Serial.println("Indentify yourself");
-}
-#pragma region execution
-void print_tag();
-void check_professor_uid();
-
+// Outros
+int buzzer = 11;
 String PASSWORD_PROFESSOR = "1234";
 String UID_PROFESSOR = "";
+
+void setup()
+{
+  pinMode(buzzer, OUTPUT);
+  Serial.begin(9600);
+  SPI.begin();
+  mfrc522.PCD_Init();
+
+  Serial.println("Iniciando sistema...");
+
+  Ethernet.begin(ARDUINO_MAC, ARDUINO_IP, GATEWAY, SUBNET);
+  delay(1000);
+
+  Serial.println("Conectando ao banco de dados...");
+}
+String print_tag();
+void check_professor_uid(String uid);
 void loop()
 {
   if (!mfrc522.PICC_IsNewCardPresent() || !mfrc522.PICC_ReadCardSerial())
@@ -50,12 +63,12 @@ void loop()
   else
   {
     startTime = millis();
-    print_tag();
-    check_professor_uid();
+    String uid = print_tag();
+    check_professor_uid(uid);
     UID_PROFESSOR = "";
   }
 }
-void print_tag()
+String print_tag()
 {
 
   Serial.print("UID tag: ");
@@ -67,11 +80,12 @@ void print_tag()
     content += String(mfrc522.uid.uidByte[i] < 0x10 ? "0" : "");
     content += String(mfrc522.uid.uidByte[i], HEX);
   }
-  tone(InBuzzerD48, 1000, 250);
+  tone(buzzer, 1000, 250);
   delay(250);
   Serial.println();
+  return content;
 }
-void check_professor_uid()
+void check_professor_uid(String uid)
 {
 
   while (UID_PROFESSOR != PASSWORD_PROFESSOR)
@@ -83,7 +97,7 @@ void check_professor_uid()
 
       if (key)
       {
-        tone(InBuzzerD48, G5, 250);
+        tone(buzzer, G5, 250);
         delay(250);
         UID_PROFESSOR += key;
         Serial.print("Typed: ");
@@ -93,6 +107,7 @@ void check_professor_uid()
           if (UID_PROFESSOR == PASSWORD_PROFESSOR)
           {
             Serial.println("Access Granted");
+            enviarParaAPI(uid, UID_PROFESSOR);
           }
           else
           {
@@ -104,12 +119,10 @@ void check_professor_uid()
     }
     else if (millis() - startTime >= interval)
     {
-      tone(InBuzzerD48, a5, 250);
-      tone(InBuzzerD48, F5, 250);
+      tone(buzzer, a5, 250);
+      tone(buzzer, F5, 250);
       Serial.println("Time out");
       break;
     }
   }
 }
-
-#pragma endregion
