@@ -1,1 +1,0 @@
-void enviarParaAPI(String uid, String senha);

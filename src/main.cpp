@@ -2,13 +2,15 @@
 #include <MFRC522.h>
 #include <SPI.h>
 #include "database.h"
-#include "config_values.h"
 #include <DIYables_Keypad.h>
 #include <Ethernet.h>
 // RFID
 #define SS_PIN 53
 #define RST_PIN 49
 MFRC522 mfrc522(SS_PIN, RST_PIN);
+
+byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
+IPAddress ip(192, 168, 100, 177);
 
 int C5 = 523;
 int D5 = 587;
@@ -40,14 +42,14 @@ String UID_PROFESSOR = "";
 
 void setup()
 {
+
   pinMode(buzzer, OUTPUT);
   Serial.begin(9600);
   SPI.begin();
+  Ethernet.begin(mac, ip);
+  Serial.println(Ethernet.localIP());
   mfrc522.PCD_Init();
-
   Serial.println("Iniciando sistema...");
-
-  Ethernet.begin(ARDUINO_MAC, ARDUINO_IP, GATEWAY, SUBNET);
   delay(1000);
 
   Serial.println("Conectando ao banco de dados...");
@@ -70,29 +72,25 @@ void loop()
 }
 String print_tag()
 {
-
-  Serial.print("UID tag: ");
   String content = "";
   for (byte i = 0; i < mfrc522.uid.size; i++)
   {
     Serial.print(mfrc522.uid.uidByte[i] < 0x10 ? "0" : "");
     Serial.print(mfrc522.uid.uidByte[i], HEX);
-    content += String(mfrc522.uid.uidByte[i] < 0x10 ? "0" : "");
     content += String(mfrc522.uid.uidByte[i], HEX);
   }
   tone(buzzer, 1000, 250);
-  delay(250);
   Serial.println();
+  delay(250);
   return content;
 }
 void check_professor_uid(String uid)
 {
 
-  while (UID_PROFESSOR != PASSWORD_PROFESSOR)
+  while (UID_PROFESSOR.length() < 4)
   {
     if (millis() - startTime <= interval)
     {
-      Serial.println((millis() - startTime));
       char key = keypad.getKey();
 
       if (key)
@@ -100,20 +98,12 @@ void check_professor_uid(String uid)
         tone(buzzer, G5, 250);
         delay(250);
         UID_PROFESSOR += key;
-        Serial.print("Typed: ");
-        Serial.println(UID_PROFESSOR);
         if (UID_PROFESSOR.length() == 4)
         {
-          if (UID_PROFESSOR == PASSWORD_PROFESSOR)
-          {
-            Serial.println("Access Granted");
-            enviarParaAPI(uid, UID_PROFESSOR);
-          }
-          else
-          {
-            Serial.println("Wrong password, try again");
-            break;
-          }
+
+          String json = "{\"ProfessorMatricula\":" + UID_PROFESSOR + ",\"PocheteId\":\"" + uid + "\"}";
+          Serial.println(json);
+          break;
         }
       }
     }
